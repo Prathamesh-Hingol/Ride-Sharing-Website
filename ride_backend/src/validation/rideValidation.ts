@@ -1,6 +1,6 @@
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-const VEHICLE_TYPES = new Set(["rickshaw", "cab", "bike"]);
+const VEHICLE_TYPES = new Set(["rickshaw", "cab", "other"]);
 
 export class RideValidationError extends Error {
   readonly statusCode = 400;
@@ -62,7 +62,7 @@ export function validateRideInput(input: RideInput, now = new Date()): Validated
   if (!TIME_PATTERN.test(time)) throw new RideValidationError("Time must be in HH:mm format");
   if (!Number.isInteger(seats) || seats < 1 || seats > 20) throw new RideValidationError("Seats must be an integer between 1 and 20");
   if (!Number.isFinite(price) || price < 0 || price > 100000) throw new RideValidationError("Price must be between 0 and 100000");
-  if (!VEHICLE_TYPES.has(vehicle)) throw new RideValidationError("Vehicle must be rickshaw, cab, or bike");
+  if (!VEHICLE_TYPES.has(vehicle)) throw new RideValidationError("Vehicle must be rickshaw, cab, or other");
 
   const departure = new Date(`${date}T${time}:00`);
   if (Number.isNaN(departure.getTime()) || departure <= now) throw new RideValidationError("Ride departure must be in the future");

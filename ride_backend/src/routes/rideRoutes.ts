@@ -14,7 +14,7 @@ const router = Router();
 router.get("/availableRides", getAllPendingRides);
 router.post("/filteredAvailableRides", getAllFilteredRides);
 router.post("/addRide", addNewRide);
-router.get("/pendingRides", getAllUpcomingRides);
+router.get("/upcomingRides", getAllUpcomingRides);
 router.get("/completedRides", getAllCompletedRides);
 router.get("/:rideID/group", getRideGroupForUser);
 router.post("/:rideID/cancel", cancelRideForUser);

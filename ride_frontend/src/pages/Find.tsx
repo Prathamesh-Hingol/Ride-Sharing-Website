@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from "react";
-import { Search, Calendar, Clock, MapPin, Car, Users } from "lucide-react";
+import { Search, MapPin, Car, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import { useRides } from "../hooks/useRides";
 import { Ride, RideFilters } from "../types";
 import { useAuth } from "../hooks/useAuth";
+import CustomDatePicker from "../components/CustomDatePicker";
+import CustomTimePicker from "../components/CustomTimePicker";
 
 /**
  * UI Layer — Find
@@ -105,7 +107,7 @@ export default function Find() {
               <input
                 type="text"
                 placeholder="From"
-                className="w-full bg-transparent focus:outline-none placeholder:text-ink-variant/60"
+                className="w-full bg-transparent focus:outline-none text-ink placeholder:text-ink-variant/60 text-sm"
                 value={filters.from}
                 onChange={(e) =>
                   setFilters({ ...filters, from: e.target.value })
@@ -118,7 +120,7 @@ export default function Find() {
               <input
                 type="text"
                 placeholder="To"
-                className="w-full bg-transparent focus:outline-none placeholder:text-ink-variant/60"
+                className="w-full bg-transparent focus:outline-none text-ink placeholder:text-ink-variant/60 text-sm"
                 value={filters.to}
                 onChange={(e) =>
                   setFilters({ ...filters, to: e.target.value })
@@ -126,34 +128,36 @@ export default function Find() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="glass-input flex items-center rounded-lg px-4 py-3">
-                <Calendar className="w-5 h-5 text-primary mr-3 shrink-0" />
-                <input
-                  type="date"
-                  className="w-full bg-transparent focus:outline-none text-ink-variant"
-                  value={filters.date}
-                  onChange={(e) =>
-                    setFilters({ ...filters, date: e.target.value })
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-ink-variant uppercase tracking-wider mb-1.5 px-1">
+                  Filter by Date
+                </label>
+                <CustomDatePicker
+                  value={filters.date || ""}
+                  placeholder="Any Date"
+                  onChange={(dateStr) =>
+                    setFilters({ ...filters, date: dateStr })
                   }
                 />
               </div>
 
-              <div className="glass-input flex items-center rounded-lg px-4 py-3">
-                <Clock className="w-5 h-5 text-primary mr-3 shrink-0" />
-                <input
-                  type="time"
-                  className="w-full bg-transparent focus:outline-none text-ink-variant"
-                  value={filters.time}
-                  onChange={(e) =>
-                    setFilters({ ...filters, time: e.target.value })
+              <div>
+                <label className="block text-xs font-semibold text-ink-variant uppercase tracking-wider mb-1.5 px-1">
+                  Filter by Time
+                </label>
+                <CustomTimePicker
+                  value={filters.time || ""}
+                  placeholder="Any Time"
+                  onChange={(timeStr) =>
+                    setFilters({ ...filters, time: timeStr })
                   }
                 />
               </div>
             </div>
 
             <Button type="submit" className="w-full" size="lg">
-              <Search className="w-4 h-4" />
+              <Search className="w-4 h-4 mr-2" />
               Search Rides
             </Button>
           </div>
@@ -190,7 +194,7 @@ export default function Find() {
                       <p className="text-ink-variant text-sm mt-1">
                         {ride.date ? formatDate(ride.date) : ""} • {ride.time}
                       </p>
-                      <p className="text-ink-variant text-sm mt-1 flex items-center gap-1.5">
+                      <p className="text-ink-variant text-sm mt-1 flex items-center gap-1.5 capitalize">
                         <Car className="w-4 h-4 text-primary" />
                         {ride.vehicle}
                       </p>
@@ -207,18 +211,18 @@ export default function Find() {
                         </span>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                            ride.isBooked === false
-                              ? "bg-tertiary/10 text-tertiary-dark border-tertiary/30"
-                              : "bg-primary/10 text-primary-dark border-primary/30"
+                            ride.isBooked === true
+                              ? "bg-primary/10 text-primary-dark border-primary/30"
+                              : "bg-tertiary/10 text-tertiary-dark border-tertiary/30"
                           }`}
                         >
-                          {ride.isBooked === false ? "Not PreBooked" : "PreBooked"}
+                          {ride.isBooked === true ? "Vehicle Pre-booked" : "Not Booked Yet"}
                         </span>
                       </div>
                     </div>
                     <div className="text-right shrink-0 w-full sm:w-auto flex sm:flex-col items-center sm:items-end justify-between gap-3">
                       <p className="text-lg font-display font-bold text-primary">
-                        {ride.price == null ? "Price to be decided" : `₹${ride.price}`}
+                        {!ride.price || Number(ride.price) <= 0 ? "Price to be decided" : `₹${ride.price}`}
                       </p>
                       <Button
                         size="sm"

@@ -15,5 +15,5 @@ export const getAuthStatus = async (): Promise<AuthStatusResponse> => {
 
 /** Destroy the server-side session */
 export const logoutRequest = async (): Promise<void> => {
-  await axiosInstance.get("/auth/logout");
+  await axiosInstance.post("/auth/logout");
 };

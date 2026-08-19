@@ -2,7 +2,7 @@ import {
   fetchAvailableRides,
   fetchFilteredRides,
   addRide,
-  fetchPendingRides,
+  fetchUpcomingRides,
   fetchCompletedRides,
   cancelRide,
   leaveRide,
@@ -56,7 +56,7 @@ export const postRide = async (rideData: NewRidePayload): Promise<Ride> => {
  */
 export const getUserUpcomingRides = async (): Promise<Ride[]> => {
   try {
-    return await fetchPendingRides();
+    return await fetchUpcomingRides();
   } catch (error) {
     console.error("[rideService] Failed to fetch upcoming rides:", error);
     return [];

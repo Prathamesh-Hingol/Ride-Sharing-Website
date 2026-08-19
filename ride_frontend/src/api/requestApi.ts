@@ -21,12 +21,12 @@ export const handleRequestApi = async (data: HandleRequestPayload): Promise<void
 
 /** Get all ride join requests the user has sent */
 export const getRequestsSentApi = async (): Promise<RideRequest[]> => {
-  const response = await axiosInstance.post<{ success: boolean; data: RideRequest[] }>("/request/requestsSent", {});
+  const response = await axiosInstance.get<{ success: boolean; data: RideRequest[] }>("/request/requestsSent");
   return response.data.data ?? [];
 };
 
 /** Get all ride join requests the user has received */
 export const getRequestsReceivedApi = async (): Promise<RideRequest[]> => {
-  const response = await axiosInstance.post<{ success: boolean; data: RideRequest[] }>("/request/requestReceived", {});
+  const response = await axiosInstance.get<{ success: boolean; data: RideRequest[] }>("/request/requestsReceived");
   return response.data.data ?? [];
 };

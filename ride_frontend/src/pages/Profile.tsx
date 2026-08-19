@@ -8,11 +8,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { useRideRequests } from "../hooks/useRideRequests";
 import { HandleRequestPayload, RideRequest } from "../types";
 import { motion, AnimatePresence } from "framer-motion";
+import ConfirmModal from "../components/ConfirmModal";
 
 /**
- * Parse student branch & graduation class year from IIT Indore email.
- * Pattern: [branchCode][entryYearDigits][rollNo]@iiti.ac.in
- * Example: ce25004042@iiti.ac.in -> Civil Engineering • Class of 2029
+ * UI Layer — Profile
+ *
+ * Fully themed with rideshare-profile.html design layout, dynamic email branch/class parsing,
+ * Framer Motion animations, interactive stats, and sleek ConfirmModal dialogs.
+ */
  */
 function getStudentDetails(email?: string) {
   if (!email) {
@@ -74,8 +77,24 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<"rides" | "history" | "requests">("rides");
   const [actionError, setActionError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const { user } = useAuth();
-  
+
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText: string;
+    isDanger: boolean;
+    onConfirm: () => Promise<void>;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    confirmText: "Confirm",
+    isDanger: true,
+    onConfirm: async () => {},
+  });
   const {
     sentRequests,
     receivedRequests,
@@ -91,12 +110,55 @@ export default function Profile() {
     completedRides,
     loading: ridesLoading,
     error: ridesError,
+    fetchProfileRides,
   } = useRides("profile");
 
   const isLoading = profileLoading || ridesLoading;
   const studentDetails = getStudentDetails(profile?.email ?? user?.email);
   const joinedDate = getJoinedDate(profile?.email ?? user?.email, profile?.createdAt ?? profile?.joinedDate);
   const initials = getInitials(profile?.name ?? user?.name);
+
+  const handleCancelRideClick = (rideID: number) => {
+    setActionError(null);
+    setActionSuccess(null);
+    setConfirmModal({
+      isOpen: true,
+      title: "Cancel Ride",
+      description: "Are you sure you want to cancel this ride? All accepted and pending requests will be canceled and your co-riders notified.",
+      confirmText: "Yes, Cancel Ride",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await cancelUserRide(rideID);
+          await fetchProfileRides();
+          setActionSuccess("Ride canceled successfully.");
+        } catch {
+          setActionError("Unable to cancel ride. Please try again.");
+        }
+      },
+    });
+  };
+
+  const handleLeaveRideClick = (rideID: number) => {
+    setActionError(null);
+    setActionSuccess(null);
+    setConfirmModal({
+      isOpen: true,
+      title: "Leave Ride",
+      description: "Are you sure you want to leave this ride? Your seat will be freed up for other students.",
+      confirmText: "Yes, Leave Ride",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await leaveUserRide(rideID);
+          await fetchProfileRides();
+          setActionSuccess("You have left the ride successfully.");
+        } catch {
+          setActionError("Unable to leave ride. Please try again.");
+        }
+      },
+    });
+  };
 
   if (isLoading) {
     return (
@@ -229,6 +291,54 @@ export default function Profile() {
                   setActionError("Unable to leave ride.");
                 }
               }}
+=======
+              <div className="flex items-center capitalize">
+                <Car className="w-4 h-4 mr-2" />
+                <span>{ride.vehicle}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {completed ? (
+          <span className="px-3 py-1 bg-secondary/10 text-secondary-dark border border-secondary/30 rounded-full text-xs font-medium">
+            Completed
+          </span>
+        ) : (
+          <span className="px-3 py-1 bg-primary/10 text-primary-dark border border-primary/30 rounded-full text-xs font-medium">
+            Upcoming
+          </span>
+        )}
+      </div>
+
+      {!completed && ride.rideID && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            to={`/chat/${ride.rideID}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+          >
+            <MessageCircle className="w-3.5 h-3.5" /> Chat
+          </Link>
+          <Link
+            to={`/rides/${ride.rideID}/group`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+          >
+            View group
+          </Link>
+          {String(ride.createdBy) === String(user?.id) ? (
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger text-xs font-medium transition-colors"
+              onClick={() => handleCancelRideClick(Number(ride.rideID))}
+            >
+              Cancel ride
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger text-xs font-medium transition-colors"
+              onClick={() => handleLeaveRideClick(Number(ride.rideID))}
+>>>>>>> b48788c86bfe11ea9d2f5ee85c1af604955cb1b7
             >
               Leave ride
             </button>
@@ -605,20 +715,150 @@ export default function Profile() {
                               {sentRequests.map((request) => (
                                 <RequestRow key={request.id} request={request} received={false} />
                               ))}
-                            </div>
-                          )}
-                        </section>
-                      </>
-                    )}
-                  </motion.div>
+    <div className="min-h-screen py-28 relative">
+      <div className="absolute w-[26rem] h-[26rem] rounded-full bg-primary/10 blur-[110px] top-10 -left-24 pointer-events-none" />
+      <div className="absolute w-[22rem] h-[22rem] rounded-full bg-secondary/10 blur-[100px] bottom-0 -right-16 pointer-events-none" />
+
+      <div className="container mx-auto px-4 relative z-10">
+        <div className="max-w-4xl mx-auto">
+          {/* Profile Card */}
+          <div className="glass-strong rounded-2xl p-6 md:p-8 mb-8">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+              <div className="w-24 h-24 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 overflow-hidden shrink-0 shadow-sm">
+                {profile?.photoUrl? (
+                  <img
+                    src={profile.photoUrl}
+                    alt={profile.name ?? "Profile"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-12 h-12 text-primary" />
                 )}
-              </AnimatePresence>
+              </div>
+              
+
+              <div className="flex-1 text-center md:text-left space-y-2">
+                <h1 className="font-display text-2xl md:text-3xl font-bold text-ink">
+                  {profile?.name ?? "Student"}
+                </h1>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-ink-variant">
+                  <div className="flex items-center gap-1.5">
+                    <Mail className="w-4 h-4 text-primary" />
+                    <span>{profile?.email}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </section>
-      </main>
+
+          {/* Activity / Rides Tabs */}
+          <div className="glass-strong rounded-2xl p-6 md:p-8">
+            <div className="flex border-b border-ink/10 mb-6 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setActiveTab("rides")}
+                className={`pb-3 px-4 text-sm font-semibold whitespace-nowrap transition-colors relative ${
+                  activeTab === "rides"
+                    ? "text-primary border-b-2 border-primary"
+                    : "text-ink-variant hover:text-ink"
+                }`}
+              >
+                My Rides ({upcomingRides.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("history")}
+                className={`pb-3 px-4 text-sm font-semibold whitespace-nowrap transition-colors relative ${
+                  activeTab === "history"
+                    ? "text-primary border-b-2 border-primary"
+                    : "text-ink-variant hover:text-ink"
+                }`}
+              >
+                Ride History ({completedRides.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("requests")}
+                className={`pb-3 px-4 text-sm font-semibold whitespace-nowrap transition-colors relative ${
+                  activeTab === "requests"
+                    ? "text-primary border-b-2 border-primary"
+                    : "text-ink-variant hover:text-ink"
+                }`}
+              >
+                Requests ({receivedRequests.length + sentRequests.length})
+              </button>
+            </div>
+
+            {/* Content Area */}
+            <div>
+              {ridesError && (
+                <p className="text-danger text-sm mb-4">{ridesError}</p>
+              )}
+              {actionError && (
+                <div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-sm mb-4">
+                  {actionError}
+                </div>
+              )}
+              {actionSuccess && (
+                <div className="p-3 rounded-lg bg-secondary/10 border border-secondary/30 text-secondary-dark text-sm mb-4">
+                  {actionSuccess}
+                </div>
+              )}
+
+              {activeTab === "rides" ? (
+                <div className="space-y-3">
+                  {upcomingRides.length === 0 ? (
+                    <p className="text-center text-ink-variant py-6">No upcoming rides</p>
+                  ) : (
+                    upcomingRides.map((ride, index) => (
+                      <RideRow ride={ride} index={index} key={ride.id ?? index} />
+                    ))
+                  )}
+                </div>
+              ) : activeTab === "history" ? (
+                <div className="space-y-3">
+                  {completedRides.length === 0 ? (
+                    <p className="text-center text-ink-variant py-6">No completed rides yet</p>
+                  ) : (
+                    completedRides.map((ride, index) => (
+                      <RideRow ride={ride} index={index} completed key={ride.id ?? index} />
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {requestsError && <p className="text-danger text-sm">{requestsError}</p>}
+                  {requestsLoading ? <p className="text-ink-variant">Loading requests...</p> : <>
+                    <section>
+                      <h2 className="font-display text-lg font-semibold text-ink mb-3">Requests to join your rides</h2>
+                      {receivedRequests.length === 0 ? <p className="text-ink-variant text-sm">No pending requests for your rides.</p> : (
+                        <div className="space-y-3">{receivedRequests.map((request) => <RequestRow key={request.id} request={request} received />)}</div>
+                      )}
+                    </section>
+                    <section>
+                      <h2 className="font-display text-lg font-semibold text-ink mb-3">Your pending requests</h2>
+                      {sentRequests.length === 0 ? <p className="text-ink-variant text-sm">You have no pending ride requests.</p> : (
+                        <div className="space-y-3">{sentRequests.map((request) => <RequestRow key={request.id} request={request} received={false} />)}</div>
+                      )}
+                    </section>
+                  </>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        description={confirmModal.description}
+        confirmText={confirmModal.confirmText}
+        isDanger={confirmModal.isDanger}
+      />
     </div>
   );
 }
-
-

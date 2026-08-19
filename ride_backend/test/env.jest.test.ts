@@ -8,6 +8,9 @@ const validEnvironment: EnvironmentVariables = {
   REDIRECT_URL: "http://localhost:3000/auth/google/callback",
   FRONTEND_URL: "http://localhost:5173",
   ALLOWED_DOMAINS: "iiti.ac.in",
+  EMAIL_USER_SENDER: "sender@example.com",
+  EMAIL_APP_PASSWORD: "app-password",
+  EMAIL_USER_RECEIVER: "receiver@example.com",
 };
 
 describe("environment validation", () => {

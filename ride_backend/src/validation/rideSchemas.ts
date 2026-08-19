@@ -20,7 +20,7 @@ export const rideCreateSchema = z
       (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
       z.number().finite().min(0).max(100_000).optional(),
     ),
-    vehicle: z.enum(["rickshaw", "cab", "bike"]),
+    vehicle: z.enum(["rickshaw", "cab", "other"]),
   })
   .superRefine((value, ctx) => {
     const departure = new Date(`${value.date}T${value.time}:00`);

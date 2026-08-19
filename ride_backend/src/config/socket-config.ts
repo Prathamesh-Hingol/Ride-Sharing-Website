@@ -6,9 +6,9 @@ import { getEnvironment } from "./env.js";
 
 /** Events the client sends to the server */
 export interface ClientToServerEvents {
-  joinRoom: (payload: { rideId: number }) => void;
-  getOlderMessages: (payload: { rideId: number }) => void;
-  "chat message": (payload: { rideId: number; user: string; message: string }) => void;
+  joinRoom: (payload: { rideId: number | string }) => void;
+  getOlderMessages: (payload: { rideId: number | string }) => void;
+  "chat message": (payload: { rideId: number | string; user?: unknown; message: string }) => void;
 }
 
 /** Events the server sends to the client */
@@ -16,11 +16,11 @@ export interface ServerToClientEvents {
   "ride members": (members: Array<{ id: number; name: string | null }>) => void;
   "older messages": (messages: unknown[]) => void;
   "chat message": (payload: {
-    rideId: number;
-    user_id: number;
+    rideId: number | string;
+    user_id: number | string;
     name: string | null;
     message: string;
-    timestamp: Date;
+    timestamp: Date | string;
   }) => void;
   "chat error": (message: string) => void;
 }

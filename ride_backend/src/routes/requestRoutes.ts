@@ -9,7 +9,7 @@ import {
 const router = Router();
 router.post("/sendRequest", sendRequest);
 router.post("/handleRequest", handleRequest);
-router.post("/requestsSent", getRequestsSent);
-router.post("/requestReceived", getRequestsReceived);
+router.get("/requestsSent", getRequestsSent);
+router.get("/requestsReceived", getRequestsReceived);
 
 export default router;

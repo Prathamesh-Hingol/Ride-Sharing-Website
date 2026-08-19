@@ -6,6 +6,9 @@ export default {
   transform: {
     "^.+\\.tsx?$": ["ts-jest", { useESM: true, tsconfig: "<rootDir>/tsconfig.json" }],
   },
+  moduleNameMapper: {
+    "^(\\.\\.?/.*)\\.js$": "$1",
+  },
   clearMocks: true,
   coverageDirectory: "coverage",
 };

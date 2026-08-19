@@ -1,4 +1,4 @@
-import { getEnvironment } from "./config/env.js";
+import { getEnvironment } from "../config/env.js";
 
 /**
  * Returns true when the email's domain is in the allowed-domains list.

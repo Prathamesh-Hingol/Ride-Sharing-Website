@@ -1,7 +1,7 @@
-import { google } from "googleapis";
+import { OAuth2Client } from "google-auth-library";
 import type { Request, Response } from "express";
-import { isEmailAllowed } from "../utils.js";
-import { findByGoogleId, create, update } from "../models/userModel.js";
+import { isEmailAllowed } from "../utils/index.js";
+import { findByGoogleId, create, update } from "../services/userService.js";
 import { logger } from "../config/logger.js";
 import { getEnvironment } from "../config/env.js";
 
@@ -14,11 +14,12 @@ const SCOPES = [
  * Build the OAuth2 client on first use — deferred so the module can be
  * imported in tests without requiring all env vars to be present.
  */
-function getOauthClient() {
+function getOauthClient(): OAuth2Client {
   const env = getEnvironment();
-  return new google.auth.OAuth2(env.googleClientId, env.googleClientSecret, env.redirectUrl);
+  return new OAuth2Client(env.googleClientId, env.googleClientSecret, env.redirectUrl);
 }
 
+/** GET /auth/google — redirect user to Google OAuth consent screen */
 export const loginRedirect = (req: Request, res: Response): void => {
   const env = getEnvironment();
   const FRONTEND_URL = env.frontendOrigins[0];
@@ -36,6 +37,7 @@ export const loginRedirect = (req: Request, res: Response): void => {
   res.redirect(authUrl);
 };
 
+/** GET /auth/google/callback — Google redirects here with auth code */
 export const googleCallback = async (req: Request, res: Response): Promise<void> => {
   const env = getEnvironment();
   const FRONTEND_URL = env.frontendOrigins[0];
@@ -43,7 +45,6 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
 
   logger.info("OAuth callback received:");
   logger.info(`Code length: ${code ? code.length : "No code"}`);
-  logger.info(`Error: ${error}`);
   logger.info(`Session ID: ${req.sessionID}`);
 
   if (error) {
@@ -115,16 +116,17 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
     req.session.refreshToken = tokens.refresh_token ?? undefined;
     res.redirect(`${FRONTEND_URL}/profile?status=success`);
   } catch (err) {
-    const error = err as Error;
-    logger.error(`Error during authentication: ${error}`);
+    const errorObj = err as Error;
+    logger.error(`Error during authentication: ${errorObj.message}`);
 
-    if (error.message.includes("invalid_grant")) {
+    if (errorObj.message.includes("invalid_grant")) {
       logger.error("Invalid grant — possible causes: code already used, expired, clock skew, or wrong redirect URI");
     }
-    res.redirect(`${FRONTEND_URL}/signin?status=error&message=${encodeURIComponent(error.message)}`);
+    res.redirect(`${FRONTEND_URL}/signin?status=error&message=${encodeURIComponent(errorObj.message)}`);
   }
 };
 
+/** GET /auth/status — returns session status */
 export const getStatus = (req: Request, res: Response): void => {
   if (!req.session.user) {
     res.status(401).json({ isAuthenticated: false, user: null });
@@ -133,18 +135,19 @@ export const getStatus = (req: Request, res: Response): void => {
   res.status(200).json({ isAuthenticated: true, user: req.session.user });
 };
 
+/** POST/GET /auth/logout — destroy session and clear cookie */
 export const logout = (req: Request, res: Response): void => {
   if (!req.session.user) {
-    res.status(400).json({ error: "No user session found" });
+    res.status(400).json({ success: false, error: "No user session found" });
     return;
   }
   req.session.destroy((err: Error | null) => {
     if (err) {
       logger.error("Error during logout:", err);
-      res.status(500).json({ error: "Logout failed" });
+      res.status(500).json({ success: false, error: "Logout failed" });
       return;
     }
     res.clearCookie("rideshare.sid");
-    res.status(200).json({ message: "Logged out successfully" });
+    res.status(200).json({ success: true, message: "Logged out successfully" });
   });
 };

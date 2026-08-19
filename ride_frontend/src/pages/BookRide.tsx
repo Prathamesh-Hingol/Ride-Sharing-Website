@@ -11,10 +11,10 @@ interface RideDetails {
   to: string;
   date: string;
   time: string;
-  price: number;
+  price?: number;
   seats: number;
   vehicle: string;
-  isBooked: boolean;
+  isBooked?: boolean;
 }
 
 export default function BookRide() {
@@ -113,11 +113,11 @@ export default function BookRide() {
                     <Users className="w-4 h-4" />
                     Available Seats: {rideDetails.seats}
                   </p>
-                  <p>Status: {rideDetails.isBooked ? 'Pre-booked' : 'Not Pre-booked'}</p>
+                  <p>Status: {rideDetails.isBooked === true ? 'Vehicle Pre-booked' : 'Not Booked Yet'}</p>
                 </div>
               </div>
               <p className="ml-auto text-lg font-display font-bold text-primary shrink-0">
-                {rideDetails.price == null ? "Price to be decided" : `₹${rideDetails.price}`}
+                {!rideDetails.price || Number(rideDetails.price) <= 0 ? "Price to be decided" : `₹${rideDetails.price}`}
               </p>
             </div>
           </div>

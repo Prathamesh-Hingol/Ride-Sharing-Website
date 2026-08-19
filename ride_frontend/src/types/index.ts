@@ -1,6 +1,6 @@
 // ─── Ride Types ─────────────────────────────────────────────────────────────
 
-export type RideType = "rickshaw" | "cab" | "bike";
+export type RideType = "rickshaw" | "cab" | "other";
 
 export interface Ride {
   id: string;
@@ -41,6 +41,7 @@ export interface NewRidePayload {
   seats: number;
   price?: number;
   vehicle: string;
+  isBooked?: boolean;
 }
 
 // ─── Auth Types ──────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ export interface RideRequest {
   rideID: number;
   createdBy: number;
   requestBy: number;
-  requestStatus: RequestStatus;
+  rideStatus: RequestStatus;
   ride: {
     source: string;
     destination: string;

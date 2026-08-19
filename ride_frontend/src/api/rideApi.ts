@@ -16,7 +16,9 @@ const normalizeRide = (ride: any): Ride => ({
   from: ride.from ?? ride.source,
   to: ride.to ?? ride.destination,
   seats: ride.seats ?? ride.seatsAvailable,
-  price: ride.price ?? ride.totalCost,
+  price: (ride.price != null && Number(ride.price) > 0)
+    ? Number(ride.price)
+    : (ride.totalCost != null && Number(ride.totalCost) > 0 ? Number(ride.totalCost) : undefined),
   vehicle: ride.vehicle ?? ride.vehicleType,
 });
 
@@ -51,8 +53,8 @@ export const addRide = async (rideData: NewRidePayload): Promise<Ride> => {
 };
 
 /** Fetch the logged-in user's upcoming (pending) rides */
-export const fetchPendingRides = async (): Promise<Ride[]> => {
-  const response = await axiosInstance.get<{ success: boolean; data: Ride[] }>("/rides/pendingRides");
+export const fetchUpcomingRides = async (): Promise<Ride[]> => {
+  const response = await axiosInstance.get<{ success: boolean; data: Ride[] }>("/rides/upcomingRides");
   return (response.data.data ?? []).map(normalizeRide);
 };
 

@@ -7,7 +7,7 @@ import { UserProfile } from "../types";
  */
 
 /** Fetch the currently authenticated user's profile */
-export const getUserProfile = async (): Promise<UserProfile> => {
-  const response = await axiosInstance.get<UserProfile>("/user/profile");
-  return response.data;
+export const getUserProfile = async (): Promise<any> => {
+  const response = await axiosInstance.get<{ success: boolean; data: any }>("/user/profile");
+  return response.data.data ?? response.data;
 };

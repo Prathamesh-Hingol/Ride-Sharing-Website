@@ -21,7 +21,7 @@ export interface NewRideData {
   time: string;
   vehicleType: string;
   seatsAvailable: number;
-  totalCost: number;
+  totalCost?: number | null;
 }
 
 export async function getRideGroup({ rideID, userID }: { rideID: number; userID: number }) {
@@ -51,6 +51,7 @@ export async function getRideGroup({ rideID, userID }: { rideID: number; userID:
     vehicleType: ride.vehicleType,
     totalSeats: ride.totalSeats,
     seatsAvailable: ride.seatsAvailable,
+    totalCost: ride.totalCost ?? null,
     rideStatus: ride.rideStatus,
     members: [ride.creator, ...ride.requests.map((r) => r.requester)],
   };
@@ -63,11 +64,11 @@ export async function cancelRide({ rideID, ownerID }: { rideID: number; ownerID:
     if (ride.createdBy !== ownerID) throw new RideLifecycleError("Only the ride owner can cancel this ride", 403);
     if (ride.rideStatus !== "Pending") throw new RideLifecycleError("Only pending rides can be cancelled");
 
-    const updated = await tx.rides.updateMany({
-      where: { rideID, rideStatus: "Pending" },
+    // Single update — Prisma throws P2025 if not found, so no count check needed.
+    await tx.rides.update({
+      where: { rideID },
       data: { rideStatus: "Cancelled" },
     });
-    if (updated.count !== 1) throw new RideLifecycleError("Ride could not be cancelled");
 
     await tx.requests.updateMany({
       where: { rideID, requestStatus: "Pending" },
@@ -99,34 +100,46 @@ export async function leaveRide({ rideID, userID }: { rideID: number; userID: nu
 }
 
 /**
- * Mark past rides as Completed, then return all future Pending rides
- * with their creator's user info.
+ * Mark past rides as Completed (lazy expiry on each fetch), then return all
+ * future Pending rides with their creator's profile info.
  *
- * The complex date+time comparison must stay as $queryRaw because
- * Prisma doesn't natively support casting a string column to timestamp.
+ * The $executeRaw is required because Prisma cannot cast a VARCHAR date+time
+ * column pair to a timestamp in a single expression.
+ *
+ * Time format defence: the `time` column may contain 'HH:MM', 'HH:MM:SS', or
+ * legacy values like 'HH:MM:SS:xx'. We always extract only the HH and MM parts
+ * via SPLIT_PART before building the interval, so malformed values never crash
+ * the query (fixes: "invalid input syntax for type interval: '21:56:00:00'").
  */
 export async function getPendingRides() {
   try {
-    // Mark expired rides as Completed
+    // Mark expired rides as Completed.
+    // SPLIT_PART extracts HH and MM regardless of how many colon-delimited
+    // segments are stored, then ':00' makes it a valid HH:MM:SS interval.
     await prisma.$executeRaw`
       UPDATE rides
       SET "rideStatus" = 'Completed'
-      WHERE ("date"::timestamp + "time"::interval) <= NOW()
-      AND "rideStatus" != 'Completed'
+      WHERE (
+        "date"::date
+        + (SPLIT_PART("time", ':', 1) || ':' || SPLIT_PART("time", ':', 2) || ':00')::interval
+      ) <= NOW()
+        AND "rideStatus" NOT IN ('Completed', 'Cancelled')
     `;
 
-    // Fetch all future pending rides with creator details
-    const rows = await prisma.$queryRaw`
-      SELECT r.*, u.name, u.email, u.picture
-      FROM rides r
-      INNER JOIN users u ON u.id = r."createdBy"
-      WHERE r."rideStatus" = 'Pending'
-        AND r."seatsAvailable" > 0
-        AND ("date"::timestamp + "time"::interval) > NOW()
-    `;
+    // Fetch all still-pending rides using typed Prisma query.
+    const rides = await prisma.rides.findMany({
+      where: {
+        rideStatus: "Pending",
+        seatsAvailable: { gt: 0 },
+      },
+      include: {
+        creator: { select: { id: true, name: true, email: true, picture: true } },
+      },
+      orderBy: [{ date: "asc" }, { time: "asc" }],
+    });
 
     logger.info("Fetched pending rides successfully");
-    return rows;
+    return rides;
   } catch (error) {
     const err = error as Error;
     logger.error(`Error fetching pending rides: ${err.message}`);
@@ -159,7 +172,11 @@ export async function getFilteredPendingRides({
     if (source?.trim()) where.source = { contains: source.trim(), mode: "insensitive" };
     if (destination?.trim()) where.destination = { contains: destination.trim(), mode: "insensitive" };
 
-    const rides = await prisma.rides.findMany({ where, include: { creator: true } });
+    const rides = await prisma.rides.findMany({
+      where,
+      include: { creator: { select: { id: true, name: true, email: true, picture: true } } },
+      orderBy: [{ date: "asc" }, { time: "asc" }],
+    });
     logger.info("Filtered pending rides fetched successfully");
     return rides;
   } catch (error) {
@@ -184,7 +201,7 @@ export async function addNewlyCreatedRide(data: NewRideData): Promise<void> {
         time: data.time,
         seatsAvailable: data.seatsAvailable,
         totalSeats: data.seatsAvailable,
-        totalCost: data.totalCost,
+        totalCost: data.totalCost ?? null,
         vehicleType: data.vehicleType,
         rideStatus: "Pending",
       },
@@ -198,36 +215,54 @@ export async function addNewlyCreatedRide(data: NewRideData): Promise<void> {
 }
 
 /**
+ * Shared helper: get rides (upcoming or completed) that the user created or joined.
+ * Replaces two nearly identical raw SQL blocks with a single typed Prisma query.
+ */
+async function getUserRidesByStatus(userID: number, rideStatus: string) {
+  return prisma.rides.findMany({
+    where: {
+      rideStatus,
+      OR: [
+        { createdBy: userID },
+        {
+          requests: {
+            some: { requestBy: userID, requestStatus: "Accepted" },
+          },
+        },
+      ],
+    },
+    include: {
+      creator: { select: { id: true, name: true } },
+      requests: {
+        where: { requestStatus: "Accepted" },
+        include: { requester: { select: { id: true, name: true } } },
+      },
+    },
+    orderBy: [{ date: "asc" }, { time: "asc" }],
+  });
+}
+
+/**
  * Get upcoming (Pending) rides that the user created or joined.
  */
 export async function getUpcomingRides({ userID }: { userID: number }) {
   try {
-    const rows = await prisma.$queryRaw`
-      SELECT
-        r."rideID", r."createdBy", r.source, r.destination,
-        r.date, r.time, r."seatsAvailable", r."totalCost",
-        r."vehicleType", u1.name AS "creatorName", r."rideStatus",
-        STRING_AGG(u2.name, ', ') AS "ridePartnerNames"
-      FROM rides r
-      INNER JOIN users u1 ON r."createdBy" = u1.id
-      LEFT JOIN requests req
-        ON req."rideID" = r."rideID" AND req."requestStatus" = 'Accepted'
-      LEFT JOIN users u2 ON req."requestBy" = u2.id
-      WHERE r."rideStatus" = 'Pending'
-        AND (
-          r."createdBy" = ${userID}
-          OR EXISTS (
-            SELECT 1 FROM requests req2
-            WHERE req2."rideID" = r."rideID"
-              AND req2."requestBy" = ${userID}
-              AND req2."requestStatus" = 'Accepted'
-          )
-        )
-      GROUP BY
-        r."rideID", r."createdBy", r.source, r.destination, r.date, r.time,
-        r."seatsAvailable", r."totalCost", r."vehicleType", r."rideStatus", u1.name
-    `;
-    return rows;
+    const rides = await getUserRidesByStatus(userID, "Pending");
+    logger.info("Fetched upcoming rides successfully");
+    return rides.map((ride) => ({
+      rideID: ride.rideID,
+      createdBy: ride.createdBy,
+      source: ride.source,
+      destination: ride.destination,
+      date: ride.date,
+      time: ride.time,
+      seatsAvailable: ride.seatsAvailable,
+      totalCost: ride.totalCost,
+      vehicleType: ride.vehicleType,
+      rideStatus: ride.rideStatus,
+      creatorName: ride.creator.name,
+      ridePartnerNames: ride.requests.map((r) => r.requester.name).filter(Boolean).join(", "),
+    }));
   } catch (error) {
     const err = error as Error;
     logger.error(`Error fetching upcoming rides: ${err.message}`);
@@ -240,32 +275,22 @@ export async function getUpcomingRides({ userID }: { userID: number }) {
  */
 export async function getCompletedRides({ userID }: { userID: number }) {
   try {
-    const rows = await prisma.$queryRaw`
-      SELECT
-        r."rideID", r."createdBy", r.source, r.destination,
-        r.date, r.time, r."seatsAvailable", r."totalCost",
-        r."vehicleType", u1.name AS "creatorName", r."rideStatus",
-        STRING_AGG(u2.name, ', ') AS "ridePartnerNames"
-      FROM rides r
-      INNER JOIN users u1 ON r."createdBy" = u1.id
-      LEFT JOIN requests req
-        ON req."rideID" = r."rideID" AND req."requestStatus" = 'Accepted'
-      LEFT JOIN users u2 ON req."requestBy" = u2.id
-      WHERE r."rideStatus" = 'Completed'
-        AND (
-          r."createdBy" = ${userID}
-          OR EXISTS (
-            SELECT 1 FROM requests req2
-            WHERE req2."rideID" = r."rideID"
-              AND req2."requestBy" = ${userID}
-              AND req2."requestStatus" = 'Accepted'
-          )
-        )
-      GROUP BY
-        r."rideID", r."createdBy", r.source, r.destination, r.date, r.time,
-        r."seatsAvailable", r."totalCost", r."vehicleType", r."rideStatus", u1.name
-    `;
-    return rows;
+    const rides = await getUserRidesByStatus(userID, "Completed");
+    logger.info("Fetched completed rides successfully");
+    return rides.map((ride) => ({
+      rideID: ride.rideID,
+      createdBy: ride.createdBy,
+      source: ride.source,
+      destination: ride.destination,
+      date: ride.date,
+      time: ride.time,
+      seatsAvailable: ride.seatsAvailable,
+      totalCost: ride.totalCost,
+      vehicleType: ride.vehicleType,
+      rideStatus: ride.rideStatus,
+      creatorName: ride.creator.name,
+      ridePartnerNames: ride.requests.map((r) => r.requester.name).filter(Boolean).join(", "),
+    }));
   } catch (error) {
     const err = error as Error;
     logger.error(`Error fetching completed rides: ${err.message}`);
