@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model session {
+  sid    String   @id @db.VarChar
+  sess   Json     @db.Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+}
+
+model users {
+  id        Int       @id @default(autoincrement())
+  google_id String    @unique @db.VarChar(255)
+  email     String    @db.VarChar(255)
+  name      String?   @db.VarChar(255)
+  picture   String?
+  isadmin   Boolean?  @default(false)
+
+  rides         rides[]        @relation("UserRides")
+  sentRequests  requests[]     @relation("UserRequests")
+  groupChats    groupChat[]    @relation("UserChats")
+}
+
+model rides {
+  rideID         Int        @id @default(autoincrement())
+  createdBy      Int
+  source         String     @db.VarChar(255)
+  destination    String     @db.VarChar(255)
+  date           String     @db.VarChar(255)
+  time           String     @db.VarChar(255)
+  seatsAvailable Int
+  totalSeats     Int?
+  totalCost      Float?
+  vehicleType    String     @db.VarChar(255)
+  rideStatus     String     @default("Pending") @db.VarChar(50)
+
+  creator        users      @relation("UserRides", fields: [createdBy], references: [id], onDelete: Cascade)
+  requests       requests[]
+  groupChats     groupChat[]
+}
+
+model requests {
+  id            Int      @id @default(autoincrement())
+  rideID        Int
+  createdBy     Int
+  requestBy     Int
+  rideStatus    String   @db.VarChar(50)
+  requestStatus String   @default("Pending") @db.VarChar(50)
+
+  ride          rides    @relation(fields: [rideID], references: [rideID], onDelete: Cascade)
+  requester     users    @relation("UserRequests", fields: [requestBy], references: [id], onDelete: Cascade)
+
+  @@unique([rideID, requestBy])
+}
+
+model groupChat {
+  id          Int      @id @default(autoincrement())
+  rideID      Int
+  rideOwner   String?  @db.VarChar(255)
+  messageBy   Int
+  message     String   @db.Text
+  messageTime String   @db.VarChar(255)
+  messageDate String   @db.VarChar(255)
+
+  ride        rides    @relation(fields: [rideID], references: [rideID], onDelete: Cascade)
+  sender      users    @relation("UserChats", fields: [messageBy], references: [id], onDelete: Cascade)
+}
